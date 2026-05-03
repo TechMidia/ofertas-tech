@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- LaunchAgent: reinicia o affiliate-link-builder automaticamente se cair -->
+<!-- Instalado em: ~/Library/LaunchAgents/com.techmidia.affiliate-link-builder.plist -->
+<!-- Gerenciar: launchctl load/unload ~/Library/LaunchAgents/com.techmidia.affiliate-link-builder.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.techmidia.affiliate-link-builder</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>node</string>
+    <string>$HOME/ofertas-tech/services/affiliate-link-builder/dist/index.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>$HOME/ofertas-tech/services/affiliate-link-builder</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>$HOME/Library/Logs/techmidia/affiliate-link-builder.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>$HOME/Library/Logs/techmidia/affiliate-link-builder.log</string>
+
+  <!-- Reinicia automaticamente se o processo morrer -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Inicia junto com o login do usuário -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Aguarda 10s antes de reiniciar após crash -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

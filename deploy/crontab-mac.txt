@@ -1,0 +1,11 @@
+# Cron do Mac — canal Tech Ofertas
+# Instalado automaticamente pelo start-mac.sh
+
+# Poster: publica 1 oferta por hora
+0 * * * * cd $HOME/ofertas-tech/services/telegram-poster && node dist/src/scheduler.js >> $HOME/Library/Logs/techmidia/poster.log 2>&1
+
+# Curador: processa novas ofertas a cada 30 minutos
+*/30 * * * * cd $HOME/ofertas-tech/services/tech-deals-curator && node dist/agent.js >> $HOME/Library/Logs/techmidia/curator.log 2>&1
+
+# Limpeza: expira entradas antigas do posted_cache (diariamente às 3h)
+0 3 * * * psql "$(grep ^PG_DSN= $HOME/ofertas-tech/.env | cut -d= -f2-)" -c "DELETE FROM affiliate.posted_cache WHERE expires_at < NOW();" >> $HOME/Library/Logs/techmidia/cleanup.log 2>&1
