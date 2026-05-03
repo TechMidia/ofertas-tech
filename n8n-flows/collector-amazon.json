@@ -1,0 +1,95 @@
+{
+  "name": "Coletor Amazon PA-API",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "name": "Cron 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Retorna os BrowseNodes tech BR para iterar\nreturn [\n  { json: { browseNodeId: '16209062011', categoryName: 'eletronicos' } },\n  { json: { browseNodeId: '16364755011', categoryName: 'informatica' } },\n  { json: { browseNodeId: '7791985011', categoryName: 'celulares' } }\n];",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Lista Categorias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gera assinatura AWS4 para a PA-API\n// Credenciais via variáveis de ambiente do n8n\nconst crypto = require('crypto');\n\nconst accessKey = $env.AMAZON_ACCESS_KEY;\nconst secretKey = $env.AMAZON_SECRET_KEY;\nconst partnerTag = $env.AMAZON_PARTNER_TAG;\nconst host = 'webservices.amazon.com.br';\nconst region = 'us-east-1';\nconst service = 'ProductAdvertisingAPI';\nconst operation = 'SearchItems';\n\nconst items = [];\n\nfor (const item of $input.all()) {\n  const { browseNodeId, categoryName } = item.json;\n\n  const payload = JSON.stringify({\n    Keywords: 'tech',\n    Resources: [\n      'Offers.Listings.Price',\n      'Offers.Listings.SavingBasis',\n      'CustomerReviews.StarRating',\n      'CustomerReviews.Count',\n      'Images.Primary.Large',\n      'ItemInfo.Title',\n      'ItemInfo.ByLineInfo'\n    ],\n    SearchIndex: 'Electronics',\n    BrowseNodeId: browseNodeId,\n    MinSavingPercent: 15,\n    PartnerTag: partnerTag,\n    PartnerType: 'Associates',\n    Marketplace: 'www.amazon.com.br'\n  });\n\n  // Cabeçalhos necessários\n  const now = new Date();\n  const amzDate = now.toISOString().replace(/[:\\-]|\\.\\d{3}/g, '').slice(0, 15) + 'Z';\n  const dateStamp = amzDate.slice(0, 8);\n\n  const canonicalHeaders = `content-encoding:amz-1.0\\ncontent-type:application/json; charset=utf-8\\nhost:${host}\\nx-amz-date:${amzDate}\\nx-amz-target:com.amazon.paapi5.v1.ProductAdvertisingAPIv1.${operation}\\n`;\n  const signedHeaders = 'content-encoding;content-type;host;x-amz-date;x-amz-target';\n  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex');\n\n  const canonicalRequest = `POST\\n/paapi5/searchitems\\n\\n${canonicalHeaders}\\n${signedHeaders}\\n${payloadHash}`;\n  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;\n  const stringToSign = `AWS4-HMAC-SHA256\\n${amzDate}\\n${credentialScope}\\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;\n\n  const hmac = (key, data) => crypto.createHmac('sha256', key).update(data).digest();\n  const signingKey = hmac(hmac(hmac(hmac(`AWS4${secretKey}`, dateStamp), region), service), 'aws4_request');\n  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');\n\n  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;\n\n  items.push({\n    json: {\n      categoryName,\n      browseNodeId,\n      payload,\n      headers: {\n        'Content-Encoding': 'amz-1.0',\n        'Content-Type': 'application/json; charset=utf-8',\n        'Host': host,\n        'X-Amz-Date': amzDate,\n        'X-Amz-Target': `com.amazon.paapi5.v1.ProductAdvertisingAPIv1.${operation}`,\n        'Authorization': authorization\n      }\n    }\n  });\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Assina Requisição AWS4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://webservices.amazon.com.br/paapi5/searchitems",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "={{$json.headers['Content-Encoding']}}", "value": "amz-1.0" },
+            { "name": "Content-Type", "value": "application/json; charset=utf-8" },
+            { "name": "X-Amz-Date", "value": "={{$json.headers['X-Amz-Date']}}" },
+            { "name": "X-Amz-Target", "value": "={{$json.headers['X-Amz-Target']}}" },
+            { "name": "Authorization", "value": "={{$json.headers['Authorization']}}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "jsonBody": "={{$json.payload}}",
+        "options": {}
+      },
+      "name": "Chama PA-API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst partnerTag = $env.AMAZON_PARTNER_TAG;\nconst items = [];\n\nfor (const item of $input.all()) {\n  const results = item.json.SearchResult?.Items || [];\n\n  for (const product of results) {\n    const title = product.ItemInfo?.Title?.DisplayValue || '';\n    const brand = product.ItemInfo?.ByLineInfo?.Brand?.DisplayValue || null;\n    const asin = product.ASIN || '';\n    const urlOriginal = `https://www.amazon.com.br/dp/${asin}?tag=${partnerTag}`;\n    const imageUrl = product.Images?.Primary?.Large?.URL || null;\n\n    const listing = product.Offers?.Listings?.[0];\n    if (!listing) continue;\n\n    const priceCurrent = listing.Price?.Amount || 0;\n    const priceOriginal = listing.SavingBasis?.Amount || null;\n    const discountPct = priceOriginal && priceCurrent\n      ? Math.round(((priceOriginal - priceCurrent) / priceOriginal) * 100)\n      : null;\n\n    const rating = product.CustomerReviews?.StarRating?.Value || null;\n    const reviewsCount = product.CustomerReviews?.Count || null;\n\n    if (priceCurrent <= 0) continue;\n\n    const hashInput = (urlOriginal + asin).toLowerCase().trim();\n    const hashDedup = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n    items.push({\n      json: {\n        source: 'amazon',\n        external_id: asin,\n        hash_dedup: hashDedup,\n        title: title.slice(0, 500),\n        url_original: urlOriginal,\n        store: 'amazon',\n        brand,\n        price_current: priceCurrent,\n        price_original: priceOriginal,\n        discount_pct: discountPct,\n        rating,\n        reviews_count: reviewsCount,\n        image_url: imageUrl,\n        raw_payload: product,\n      }\n    });\n  }\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Normaliza Produtos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO affiliate.offers_raw\n  (source, external_id, hash_dedup, title, url_original, store, brand,\n   price_current, price_original, discount_pct, rating, reviews_count, image_url, raw_payload)\nVALUES\n  ('{{ $json.source }}', '{{ $json.external_id }}', '{{ $json.hash_dedup }}',\n   '{{ $json.title }}', '{{ $json.url_original }}', '{{ $json.store }}',\n   {{ $json.brand ? `'${$json.brand}'` : 'NULL' }},\n   {{ $json.price_current }},\n   {{ $json.price_original ?? 'NULL' }},\n   {{ $json.discount_pct ?? 'NULL' }},\n   {{ $json.rating ?? 'NULL' }},\n   {{ $json.reviews_count ?? 'NULL' }},\n   {{ $json.image_url ? `'${$json.image_url}'` : 'NULL' }},\n   '{{ JSON.stringify($json.raw_payload) }}'::jsonb)\nON CONFLICT (hash_dedup) DO NOTHING;"
+      },
+      "name": "Salva no PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "credentials": {
+        "postgres": { "id": "pg-openclaw", "name": "PostgreSQL OpenClaw" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 15min": { "main": [[{ "node": "Lista Categorias", "type": "main", "index": 0 }]] },
+    "Lista Categorias": { "main": [[{ "node": "Assina Requisição AWS4", "type": "main", "index": 0 }]] },
+    "Assina Requisição AWS4": { "main": [[{ "node": "Chama PA-API", "type": "main", "index": 0 }]] },
+    "Chama PA-API": { "main": [[{ "node": "Normaliza Produtos", "type": "main", "index": 0 }]] },
+    "Normaliza Produtos": { "main": [[{ "node": "Salva no PostgreSQL", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["affiliate", "coletor", "amazon"]
+}

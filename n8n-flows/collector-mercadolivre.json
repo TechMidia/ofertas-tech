@@ -1,0 +1,74 @@
+{
+  "name": "Coletor Mercado Livre",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "name": "Cron 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { categoryId: 'MLB1648', categoryName: 'informatica' } },\n  { json: { categoryId: 'MLB1051', categoryName: 'celulares' } },\n  { json: { categoryId: 'MLB1000', categoryName: 'eletronicos' } },\n  { json: { categoryId: 'MLB1144', categoryName: 'games' } }\n];",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Lista Categorias ML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/sites/MLB/search?category={{$json.categoryId}}&discount=15-100&limit=50&sort=discount",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$env.ML_ACCESS_TOKEN}}" }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Busca Ofertas ML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst affiliateTag = $env.ML_AFFILIATE_TAG || '';\nconst items = [];\n\nfor (const item of $input.all()) {\n  const results = item.json.results || [];\n\n  for (const product of results) {\n    const mlId = product.id || '';\n    const title = (product.title || '').slice(0, 500);\n    const urlOriginal = product.permalink || '';\n    const brand = product.brand || null;\n    const priceCurrent = product.price || 0;\n    const priceOriginal = product.original_price || null;\n    const discountPct = priceOriginal && priceCurrent\n      ? Math.round(((priceOriginal - priceCurrent) / priceOriginal) * 100)\n      : null;\n    const imageUrl = product.thumbnail?.replace('-I.jpg', '-O.jpg') || null;\n    const condition = product.condition || '';\n\n    if (priceCurrent <= 0 || !urlOriginal) continue;\n    if (discountPct !== null && discountPct < 15) continue;\n\n    const hashInput = (urlOriginal + mlId).toLowerCase().trim();\n    const hashDedup = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n    items.push({\n      json: {\n        source: 'mercadolivre',\n        external_id: mlId,\n        hash_dedup: hashDedup,\n        title,\n        url_original: urlOriginal,\n        store: 'mercadolivre',\n        brand,\n        price_current: priceCurrent,\n        price_original: priceOriginal,\n        discount_pct: discountPct,\n        image_url: imageUrl,\n        raw_payload: { id: mlId, title, price: priceCurrent, original_price: priceOriginal, condition },\n      }\n    });\n  }\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Normaliza Produtos ML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO affiliate.offers_raw\n  (source, external_id, hash_dedup, title, url_original, store, brand,\n   price_current, price_original, discount_pct, image_url, raw_payload)\nVALUES\n  ('{{ $json.source }}', '{{ $json.external_id }}', '{{ $json.hash_dedup }}',\n   '{{ $json.title }}', '{{ $json.url_original }}', '{{ $json.store }}',\n   {{ $json.brand ? `'${$json.brand}'` : 'NULL' }},\n   {{ $json.price_current }},\n   {{ $json.price_original ?? 'NULL' }},\n   {{ $json.discount_pct ?? 'NULL' }},\n   {{ $json.image_url ? `'${$json.image_url}'` : 'NULL' }},\n   '{{ JSON.stringify($json.raw_payload) }}'::jsonb)\nON CONFLICT (hash_dedup) DO NOTHING;"
+      },
+      "name": "Salva no PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1120, 300],
+      "credentials": {
+        "postgres": { "id": "pg-openclaw", "name": "PostgreSQL OpenClaw" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 15min": { "main": [[{ "node": "Lista Categorias ML", "type": "main", "index": 0 }]] },
+    "Lista Categorias ML": { "main": [[{ "node": "Busca Ofertas ML", "type": "main", "index": 0 }]] },
+    "Busca Ofertas ML": { "main": [[{ "node": "Normaliza Produtos ML", "type": "main", "index": 0 }]] },
+    "Normaliza Produtos ML": { "main": [[{ "node": "Salva no PostgreSQL", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["affiliate", "coletor", "mercadolivre"]
+}

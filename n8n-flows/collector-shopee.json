@@ -1,0 +1,91 @@
+{
+  "name": "Coletor Shopee Affiliate",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "name": "Cron 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Categorias tech na Shopee BR\nreturn [\n  { json: { categoryId: '11000632', categoryName: 'celulares' } },\n  { json: { categoryId: '11000016', categoryName: 'informatica' } },\n  { json: { categoryId: '11000584', categoryName: 'eletronicos' } },\n  { json: { categoryId: '11000115', categoryName: 'games' } }\n];",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Lista Categorias Shopee",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gera assinatura SHA256 para Shopee Affiliate Open API\nconst crypto = require('crypto');\nconst appId = $env.SHOPEE_APP_ID;\nconst secret = $env.SHOPEE_SECRET;\nconst items = [];\n\nfor (const item of $input.all()) {\n  const { categoryId, categoryName } = item.json;\n  const timestamp = Math.floor(Date.now() / 1000);\n\n  const query = `\n    query GetOffers($input: ProductOfferV2Input!) {\n      productOfferV2(input: $input) {\n        nodes {\n          itemId\n          productName\n          priceMin\n          priceMax\n          priceDiscountRate\n          sales\n          ratingStar\n          imageUrl\n          shopeeUrl\n          offerLink\n        }\n        pageInfo { page size hasNextPage }\n      }\n    }\n  `;\n\n  const variables = {\n    input: {\n      categoryIds: [categoryId],\n      sortType: 2, // Sort by commission\n      page: 1,\n      limit: 50,\n      minCommissionRate: 1\n    }\n  };\n\n  const payload = JSON.stringify({ query, variables });\n  const raw = `${appId}${timestamp}${payload}${secret}`;\n  const signature = crypto.createHash('sha256').update(raw).digest('hex');\n\n  items.push({\n    json: { categoryName, categoryId, payload, timestamp, signature, appId }\n  });\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Assina Requisição Shopee",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://open-api.affiliate.shopee.com.br/graphql",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "={{$json.appId}}" },
+            { "name": "Timestamp", "value": "={{$json.timestamp}}" },
+            { "name": "Signature", "value": "={{$json.signature}}" }
+          ]
+        },
+        "sendBody": true,
+        "jsonBody": "={{$json.payload}}",
+        "options": {}
+      },
+      "name": "Chama Shopee GraphQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst items = [];\n\nfor (const item of $input.all()) {\n  const nodes = item.json.data?.productOfferV2?.nodes || [];\n\n  for (const product of nodes) {\n    const shopeeId = String(product.itemId || '');\n    const title = (product.productName || '').slice(0, 500);\n    const urlOriginal = product.shopeeUrl || product.offerLink || '';\n    const priceCurrent = product.priceMin || 0;\n    const discountPct = product.priceDiscountRate\n      ? Math.round(parseFloat(product.priceDiscountRate) * 100)\n      : null;\n    const rating = product.ratingStar ? parseFloat(product.ratingStar) : null;\n    const imageUrl = product.imageUrl || null;\n\n    if (priceCurrent <= 0 || !urlOriginal) continue;\n\n    const hashInput = (urlOriginal + shopeeId).toLowerCase().trim();\n    const hashDedup = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n    items.push({\n      json: {\n        source: 'shopee',\n        external_id: shopeeId,\n        hash_dedup: hashDedup,\n        title,\n        url_original: urlOriginal,\n        store: 'shopee',\n        price_current: priceCurrent,\n        discount_pct: discountPct,\n        rating,\n        image_url: imageUrl,\n        raw_payload: product,\n      }\n    });\n  }\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Normaliza Produtos Shopee",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO affiliate.offers_raw\n  (source, external_id, hash_dedup, title, url_original, store,\n   price_current, discount_pct, rating, image_url, raw_payload)\nVALUES\n  ('{{ $json.source }}', '{{ $json.external_id }}', '{{ $json.hash_dedup }}',\n   '{{ $json.title }}', '{{ $json.url_original }}', '{{ $json.store }}',\n   {{ $json.price_current }},\n   {{ $json.discount_pct ?? 'NULL' }},\n   {{ $json.rating ?? 'NULL' }},\n   {{ $json.image_url ? `'${$json.image_url}'` : 'NULL' }},\n   '{{ JSON.stringify($json.raw_payload) }}'::jsonb)\nON CONFLICT (hash_dedup) DO NOTHING;"
+      },
+      "name": "Salva no PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "credentials": {
+        "postgres": { "id": "pg-openclaw", "name": "PostgreSQL OpenClaw" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 15min": { "main": [[{ "node": "Lista Categorias Shopee", "type": "main", "index": 0 }]] },
+    "Lista Categorias Shopee": { "main": [[{ "node": "Assina Requisição Shopee", "type": "main", "index": 0 }]] },
+    "Assina Requisição Shopee": { "main": [[{ "node": "Chama Shopee GraphQL", "type": "main", "index": 0 }]] },
+    "Chama Shopee GraphQL": { "main": [[{ "node": "Normaliza Produtos Shopee", "type": "main", "index": 0 }]] },
+    "Normaliza Produtos Shopee": { "main": [[{ "node": "Salva no PostgreSQL", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["affiliate", "coletor", "shopee"]
+}

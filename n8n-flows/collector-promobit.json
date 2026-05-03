@@ -1,0 +1,108 @@
+{
+  "name": "Coletor Promobit RSS",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "name": "Cron 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www.promobit.com.br/feed/categoria/eletronicos/rss",
+        "options": {}
+      },
+      "name": "Fetch RSS Eletrônicos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 220]
+    },
+    {
+      "parameters": {
+        "url": "https://www.promobit.com.br/feed/categoria/informatica/rss",
+        "options": {}
+      },
+      "name": "Fetch RSS Informática",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://www.promobit.com.br/feed/categoria/celulares/rss",
+        "options": {}
+      },
+      "name": "Fetch RSS Celulares",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 380]
+    },
+    {
+      "parameters": {
+        "url": "https://www.promobit.com.br/feed/categoria/games/rss",
+        "options": {}
+      },
+      "name": "Fetch RSS Games",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nconst cutoffMs = 2 * 60 * 60 * 1000; // 2 horas\nconst now = Date.now();\n\nfor (const item of $input.all()) {\n  const xml = item.json.data || '';\n  const entries = xml.match(/<item>[\\s\\S]*?<\\/item>/g) || [];\n\n  for (const entry of entries) {\n    const title = (entry.match(/<title><!\\[CDATA\\[(.+?)\\]\\]><\\/title>/) || [])[1] || '';\n    const link = (entry.match(/<link>([^<]+)<\\/link>/) || [])[1] || '';\n    const description = (entry.match(/<description><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/description>/) || [])[1] || '';\n    const pubDate = (entry.match(/<pubDate>([^<]+)<\\/pubDate>/) || [])[1] || '';\n    const imageUrl = (entry.match(/<enclosure url=\"([^\"]+)\"/) || [])[1] || '';\n\n    if (!link) continue;\n\n    const pubTime = pubDate ? new Date(pubDate).getTime() : 0;\n    if (now - pubTime > cutoffMs) continue; // mais de 2h, ignora\n\n    items.push({\n      json: {\n        source: 'promobit',\n        external_id: link,\n        title: title.slice(0, 500),\n        description: description.slice(0, 2000),\n        url_original: link,\n        store: 'promobit',\n        image_url: imageUrl,\n        price_current: 0, // Promobit não expõe preço no RSS\n        raw_payload: { title, link, description, pubDate, imageUrl },\n      }\n    });\n  }\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Parse e Filtra RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 340]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst items = [];\n\nfor (const item of $input.all()) {\n  const d = item.json;\n  const hashInput = (d.url_original + (d.external_id || '')).toLowerCase().trim();\n  const hashDedup = crypto.createHash('sha256').update(hashInput).digest('hex');\n\n  items.push({\n    json: {\n      ...d,\n      hash_dedup: hashDedup,\n    }\n  });\n}\n\nreturn items;",
+        "mode": "runOnceForAllItems"
+      },
+      "name": "Gera hash_dedup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 340]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO affiliate.offers_raw\n  (source, external_id, hash_dedup, title, description, url_original, store, image_url, price_current, raw_payload)\nVALUES\n  ('{{ $json.source }}', '{{ $json.external_id }}', '{{ $json.hash_dedup }}',\n   '{{ $json.title }}', '{{ $json.description }}', '{{ $json.url_original }}',\n   '{{ $json.store }}', '{{ $json.image_url }}', {{ $json.price_current }},\n   '{{ JSON.stringify($json.raw_payload) }}'::jsonb)\nON CONFLICT (hash_dedup) DO NOTHING;"
+      },
+      "name": "Salva no PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1140, 340],
+      "credentials": {
+        "postgres": { "id": "pg-openclaw", "name": "PostgreSQL OpenClaw" }
+      }
+    }
+  ],
+  "connections": {
+    "Cron 15min": {
+      "main": [[
+        { "node": "Fetch RSS Eletrônicos", "type": "main", "index": 0 },
+        { "node": "Fetch RSS Informática", "type": "main", "index": 0 },
+        { "node": "Fetch RSS Celulares", "type": "main", "index": 0 },
+        { "node": "Fetch RSS Games", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch RSS Eletrônicos": { "main": [[{ "node": "Parse e Filtra RSS", "type": "main", "index": 0 }]] },
+    "Fetch RSS Informática": { "main": [[{ "node": "Parse e Filtra RSS", "type": "main", "index": 0 }]] },
+    "Fetch RSS Celulares": { "main": [[{ "node": "Parse e Filtra RSS", "type": "main", "index": 0 }]] },
+    "Fetch RSS Games": { "main": [[{ "node": "Parse e Filtra RSS", "type": "main", "index": 0 }]] },
+    "Parse e Filtra RSS": { "main": [[{ "node": "Gera hash_dedup", "type": "main", "index": 0 }]] },
+    "Gera hash_dedup": { "main": [[{ "node": "Salva no PostgreSQL", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["affiliate", "coletor", "promobit"]
+}

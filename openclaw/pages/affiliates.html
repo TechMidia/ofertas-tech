@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Afiliados — OpenClaw</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --surface2:  #1a1a24;
+      --border:    #2a2a38;
+      --amber:     #fbbf24;
+      --amber-dim: #92400e;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --success:   #22c55e;
+      --danger:    #ef4444;
+      --font-sans: 'Syne', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────── */
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 20px 60px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--amber);
+      letter-spacing: -0.5px;
+    }
+
+    .page-header .badge {
+      background: var(--amber-dim);
+      color: var(--amber);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+    }
+
+    /* ── KPI Cards ───────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--amber);
+      opacity: 0.6;
+    }
+
+    .kpi-card .label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .kpi-card .value {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--amber);
+      font-family: var(--font-mono);
+      line-height: 1;
+    }
+
+    .kpi-card .sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+      font-family: var(--font-mono);
+    }
+
+    .kpi-card .sub.up   { color: var(--success); }
+    .kpi-card .sub.down { color: var(--danger); }
+
+    /* ── Grid de charts ──────────────────────────────────────────────── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .chart-card canvas { width: 100% !important; }
+
+    /* ── Tabelas ─────────────────────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 0 12px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-sans);
+      font-weight: 700;
+    }
+
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(42,42,56,0.5);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+
+    .data-table tr:hover td { background: var(--surface2); }
+
+    .badge-tier {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .badge-tier.high   { background: rgba(251,191,36,0.15); color: var(--amber); }
+    .badge-tier.normal { background: rgba(100,116,139,0.15); color: var(--muted); }
+    .badge-tier.low    { background: rgba(30,41,59,0.8); color: #475569; }
+
+    /* ── Funil ───────────────────────────────────────────────────────── */
+    .funnel-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .funnel-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      text-align: center;
+      position: relative;
+    }
+
+    .funnel-step::after {
+      content: '›';
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--border);
+      font-size: 20px;
+      z-index: 1;
+    }
+
+    .funnel-step:last-child::after { display: none; }
+
+    .funnel-step .step-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .funnel-step .step-value {
+      font-size: 32px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      color: var(--amber);
+    }
+
+    .funnel-step .step-rate {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Fila de próximas ofertas ────────────────────────────────────── */
+    .queue-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .queue-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .queue-item img {
+      width: 52px;
+      height: 52px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--surface2);
+    }
+
+    .queue-item .q-info { flex: 1; min-width: 0; }
+
+    .queue-item .q-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .queue-item .q-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+    }
+
+    .queue-item .q-price { color: var(--amber); font-weight: 700; }
+
+    /* ── Log de posts ────────────────────────────────────────────────── */
+    .log-entry {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(42,42,56,0.5);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+
+    .log-entry .ts { color: var(--muted); flex-shrink: 0; width: 140px; }
+    .log-entry .store { color: var(--amber); width: 100px; flex-shrink: 0; }
+    .log-entry .title-col { flex: 1; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .log-entry .clicks { color: var(--success); width: 60px; text-align: right; flex-shrink: 0; }
+    .log-entry .views { color: var(--muted); width: 60px; text-align: right; flex-shrink: 0; }
+
+    /* ── Configurações ───────────────────────────────────────────────── */
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .config-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .config-section h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 16px;
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .form-row label {
+      font-size: 12px;
+      color: var(--muted);
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    .form-row input[type="text"],
+    .form-row input[type="number"],
+    .form-row select {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .form-row input:focus, .form-row select:focus {
+      outline: none;
+      border-color: var(--amber);
+    }
+
+    .btn {
+      background: var(--amber);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+    .btn.secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .brand-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .brand-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .brand-tag.whitelist { background: rgba(34,197,94,0.12); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+    .brand-tag.blacklist { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .brand-tag:hover { opacity: 0.7; }
+
+    /* ── Status indicator ────────────────────────────────────────────── */
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-dot.offline { background: var(--danger); }
+
+    /* ── Tabs ────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px 10px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+
+    .tab-btn.active {
+      color: var(--amber);
+      border-bottom-color: var(--amber);
+    }
+
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Scrollbar ───────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Loading skeleton ────────────────────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+      background-size: 400px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+
+    /* ── Responsivo ──────────────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .charts-row { grid-template-columns: 1fr 1fr; }
+      .charts-row .chart-card:first-child { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 640px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .funnel-row { grid-template-columns: repeat(2, 1fr); }
+      .charts-row { grid-template-columns: 1fr; }
+      .config-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <h1>📡 Afiliados</h1>
+    <span class="badge">v1.0</span>
+    <span style="margin-left:auto; font-size:12px; color:var(--muted);">
+      <span class="status-dot online" id="status-dot"></span>
+      <span id="status-label">Sistema ativo</span>
+    </span>
+    <button class="btn secondary" onclick="refreshAll()" style="margin-left:12px;">↻ Atualizar</button>
+  </div>
+
+  <!-- ── Tabs ──────────────────────────────────────────────────────────── -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('fila')">Fila</button>
+    <button class="tab-btn" onclick="switchTab('logs')">Logs</button>
+    <button class="tab-btn" onclick="switchTab('config')">Configurações</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: Dashboard                                                     -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-dashboard">
+
+    <!-- KPIs -->
+    <p class="section-title">KPIs — Hoje</p>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <div class="label">Posts hoje</div>
+        <div class="value" id="kpi-posts">—</div>
+        <div class="sub" id="kpi-posts-sub">de 24 esperados</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Cliques 24h</div>
+        <div class="value" id="kpi-clicks">—</div>
+        <div class="sub" id="kpi-clicks-sub">vs ontem</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">CTR médio</div>
+        <div class="value" id="kpi-ctr">—</div>
+        <div class="sub">cliques / views</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Comissão est. mês</div>
+        <div class="value" id="kpi-commission">—</div>
+        <div class="sub">R$ estimado</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Top loja do dia</div>
+        <div class="value" id="kpi-top-store" style="font-size:18px;">—</div>
+        <div class="sub" id="kpi-top-store-sub"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">Buffer aprovadas</div>
+        <div class="value" id="kpi-buffer">—</div>
+        <div class="sub">ofertas prontas</div>
+      </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <p class="section-title">Cliques × Hora (últimas 24h)</p>
+        <canvas id="chart-clicks-hour" height="120"></canvas>
+      </div>
+      <div class="chart-card">
+        <p class="section-title">Performance por loja</p>
+        <canvas id="chart-stores" height="120"></canvas>
+      </div>
+      <div class="chart-card">
+        <p class="section-title">Performance por categoria</p>
+        <canvas id="chart-categories" height="120"></canvas>
+      </div>
+    </div>
+
+    <!-- Funil -->
+    <p class="section-title">Funil da semana</p>
+    <div class="funnel-row" id="funnel-row">
+      <div class="funnel-step">
+        <div class="step-label">Coletadas</div>
+        <div class="step-value" id="funnel-collected">—</div>
+        <div class="step-rate">100%</div>
+      </div>
+      <div class="funnel-step">
+        <div class="step-label">Aprovadas</div>
+        <div class="step-value" id="funnel-approved">—</div>
+        <div class="step-rate" id="funnel-approved-rate">—</div>
+      </div>
+      <div class="funnel-step">
+        <div class="step-label">Postadas</div>
+        <div class="step-value" id="funnel-posted">—</div>
+        <div class="step-rate" id="funnel-posted-rate">—</div>
+      </div>
+      <div class="funnel-step">
+        <div class="step-label">Clicadas</div>
+        <div class="step-value" id="funnel-clicked">—</div>
+        <div class="step-rate" id="funnel-clicked-rate">—</div>
+      </div>
+    </div>
+
+    <!-- Top 10 ofertas -->
+    <p class="section-title">Top 10 Ofertas da Semana</p>
+    <div class="table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Produto</th>
+            <th>Loja</th>
+            <th>Cliques</th>
+            <th>Views</th>
+            <th>CTR</th>
+          </tr>
+        </thead>
+        <tbody id="top-offers-tbody">
+          <tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: Fila                                                          -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-fila">
+    <p class="section-title">Próximas 12 ofertas a publicar</p>
+    <div class="queue-grid" id="queue-grid">
+      <div style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: Logs                                                          -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-logs">
+    <p class="section-title">Últimos 50 posts publicados</p>
+    <div class="table-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <input type="text" placeholder="Filtrar por produto, loja..." id="log-filter"
+               style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+                      color:var(--text);padding:6px 10px;font-family:var(--font-mono);font-size:12px;width:280px;"
+               oninput="filterLogs()" />
+      </div>
+      <div id="log-list"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <!-- TAB: Configurações                                                 -->
+  <!-- ══════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-config">
+    <div class="config-grid">
+
+      <!-- Score threshold -->
+      <div class="config-section">
+        <h3>⚙️ Parâmetros do Curador</h3>
+        <div class="form-row">
+          <label>Score mínimo (0-100)</label>
+          <input type="number" id="cfg-threshold" value="70" min="0" max="100" />
+        </div>
+        <div class="form-row">
+          <label>Desconto mín. (%) </label>
+          <input type="number" id="cfg-min-discount" value="15" min="5" max="80" />
+        </div>
+        <div class="form-row">
+          <label>Reviews mín.</label>
+          <input type="number" id="cfg-min-reviews" value="50" min="0" />
+        </div>
+        <div class="form-row">
+          <label>Rating mín.</label>
+          <input type="number" id="cfg-min-rating" value="4.0" min="1" max="5" step="0.1" />
+        </div>
+        <button class="btn" onclick="saveConfig()">Salvar configurações</button>
+      </div>
+
+      <!-- Brand rules -->
+      <div class="config-section">
+        <h3>🏷️ Regras de Marca</h3>
+        <div class="form-row">
+          <label>Marca</label>
+          <input type="text" id="brand-input" placeholder="ex: Samsung" />
+        </div>
+        <div class="form-row">
+          <label>Status</label>
+          <select id="brand-status">
+            <option value="whitelist">✅ Whitelist</option>
+            <option value="blacklist">🚫 Blacklist</option>
+            <option value="neutral">➖ Neutral</option>
+          </select>
+        </div>
+        <button class="btn" onclick="addBrandRule()">Adicionar marca</button>
+
+        <p style="font-size:11px;color:var(--muted);margin-top:16px;margin-bottom:8px;">WHITELIST</p>
+        <div class="brand-tags" id="whitelist-tags"></div>
+
+        <p style="font-size:11px;color:var(--muted);margin-top:16px;margin-bottom:8px;">BLACKLIST</p>
+        <div class="brand-tags" id="blacklist-tags"></div>
+      </div>
+
+      <!-- Slot patrocinado -->
+      <div class="config-section" style="grid-column:1/-1;">
+        <h3>📢 Slot Patrocinado (v2 — inativo no MVP)</h3>
+        <div style="background:var(--surface2);border:1px solid var(--amber-dim);border-radius:8px;
+                    padding:14px 16px;font-family:var(--font-mono);font-size:12px;color:var(--muted);">
+          O slot de publicidade está preparado na estrutura mas desativado para o MVP v1.<br/>
+          Para ativar: inserir campanha na tabela <strong style="color:var(--text)">affiliate.sponsored_campaigns</strong>
+          com <code style="color:var(--amber)">active = true</code>.<br/>
+          O bloco aparecerá automaticamente em todos os posts enquanto <code>posts_remaining > 0</code>.
+        </div>
+
+        <div style="margin-top:16px;">
+          <p class="section-title">Campanhas cadastradas</p>
+          <div id="campaigns-list" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">
+            Nenhuma campanha ativa.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// Estado e configuração
+// ═══════════════════════════════════════════════════════════════════════════
+
+const API_BASE = '/api/affiliate'; // Ajustar para o endpoint real do OpenClaw backend
+
+let chartClicksHour = null;
+let chartStores = null;
+let chartCategories = null;
+let allLogs = [];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tabs
+// ═══════════════════════════════════════════════════════════════════════════
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', b.getAttribute('onclick').includes(tab));
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.remove('active');
+  });
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  if (tab === 'fila') loadQueue();
+  if (tab === 'logs') loadLogs();
+  if (tab === 'config') loadConfig();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Utilitários
+// ═══════════════════════════════════════════════════════════════════════════
+
+function fmt(n, decimals = 0) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtBrl(n) {
+  if (n === null || n === undefined) return '—';
+  return 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toFixed(1) + '%';
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
+
+const STORE_EMOJI = { amazon:'📦', mercadolivre:'🛍️', shopee:'🟠', promobit:'🔥' };
+const storeLabel = s => (STORE_EMOJI[s] || '🏪') + ' ' + (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
+
+async function apiFetch(path) {
+  try {
+    const res = await fetch(API_BASE + path);
+    if (!res.ok) throw new Error(res.status);
+    return await res.json();
+  } catch (e) {
+    console.warn('[API]', path, e.message);
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadDashboard() {
+  const [kpis, clicksHour, stores, categories, funnel, topOffers] = await Promise.all([
+    apiFetch('/kpis'),
+    apiFetch('/clicks-by-hour'),
+    apiFetch('/stores'),
+    apiFetch('/categories'),
+    apiFetch('/funnel'),
+    apiFetch('/top-offers'),
+  ]);
+
+  renderKpis(kpis);
+  renderClicksHour(clicksHour);
+  renderStores(stores);
+  renderCategories(categories);
+  renderFunnel(funnel);
+  renderTopOffers(topOffers);
+}
+
+function renderKpis(data) {
+  if (!data) return;
+  setText('kpi-posts', data.posts_today ?? '—');
+  setText('kpi-clicks', fmt(data.clicks_24h));
+  setText('kpi-ctr', fmtPct(data.ctr_avg));
+  setText('kpi-commission', fmtBrl(data.commission_est_month));
+  setText('kpi-top-store', storeLabel(data.top_store));
+  setText('kpi-top-store-sub', data.top_store_clicks ? fmt(data.top_store_clicks) + ' cliques' : '');
+  setText('kpi-buffer', fmt(data.buffer_count));
+
+  const clicksSub = document.getElementById('kpi-clicks-sub');
+  if (data.clicks_diff !== undefined) {
+    const sign = data.clicks_diff >= 0 ? '+' : '';
+    clicksSub.textContent = `${sign}${fmt(data.clicks_diff)} vs ontem`;
+    clicksSub.className = 'sub ' + (data.clicks_diff >= 0 ? 'up' : 'down');
+  }
+}
+
+function renderClicksHour(data) {
+  const ctx = document.getElementById('chart-clicks-hour').getContext('2d');
+  const labels = [];
+  const values = [];
+
+  if (data && Array.isArray(data)) {
+    data.forEach(row => {
+      labels.push(row.hour + 'h');
+      values.push(row.clicks);
+    });
+  } else {
+    // Placeholder data para demonstração visual
+    for (let h = 0; h < 24; h++) {
+      labels.push(h + 'h');
+      values.push(0);
+    }
+  }
+
+  if (chartClicksHour) chartClicksHour.destroy();
+  chartClicksHour = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cliques',
+        data: values,
+        borderColor: '#fbbf24',
+        backgroundColor: 'rgba(251,191,36,0.08)',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#fbbf24',
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(42,42,56,0.5)' } },
+        y: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(42,42,56,0.5)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderStores(data) {
+  const ctx = document.getElementById('chart-stores').getContext('2d');
+  const labels = data ? data.map(r => r.store) : ['Amazon', 'Mercado Livre', 'Shopee'];
+  const values = data ? data.map(r => r.clicks) : [0, 0, 0];
+
+  if (chartStores) chartStores.destroy();
+  chartStores = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: ['#fbbf24', '#f59e0b', '#d97706', '#b45309'],
+        borderWidth: 0,
+        hoverOffset: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#64748b', font: { family: 'Syne', size: 11 }, padding: 10 } }
+      }
+    }
+  });
+}
+
+function renderCategories(data) {
+  const ctx = document.getElementById('chart-categories').getContext('2d');
+  const labels = data ? data.map(r => r.category) : [];
+  const values = data ? data.map(r => r.clicks) : [];
+
+  if (chartCategories) chartCategories.destroy();
+  chartCategories = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: 'rgba(251,191,36,0.7)',
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: 'rgba(42,42,56,0.5)' } },
+        y: { ticks: { color: '#e2e8f0', font: { family: 'JetBrains Mono', size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderFunnel(data) {
+  if (!data) return;
+  const { collected, approved, posted, clicked } = data;
+  setText('funnel-collected', fmt(collected));
+  setText('funnel-approved', fmt(approved));
+  setText('funnel-posted', fmt(posted));
+  setText('funnel-clicked', fmt(clicked));
+
+  const approvedRate = collected ? ((approved / collected) * 100).toFixed(1) + '%' : '—';
+  const postedRate = approved ? ((posted / approved) * 100).toFixed(1) + '%' : '—';
+  const clickedRate = posted ? ((clicked / posted) * 100).toFixed(1) + '%' : '—';
+
+  setText('funnel-approved-rate', approvedRate + ' de aprovação');
+  setText('funnel-posted-rate', postedRate + ' postados');
+  setText('funnel-clicked-rate', clickedRate + ' CTR');
+}
+
+function renderTopOffers(data) {
+  const tbody = document.getElementById('top-offers-tbody');
+  if (!data || !data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:20px;">Sem dados disponíveis</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map((r, i) => `
+    <tr>
+      <td style="color:var(--amber)">${i + 1}</td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${esc(r.title)}</td>
+      <td>${storeLabel(r.store)}</td>
+      <td style="color:var(--success)">${fmt(r.clicks)}</td>
+      <td style="color:var(--muted)">${fmt(r.views)}</td>
+      <td style="color:var(--amber)">${fmtPct(r.ctr)}</td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Fila
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadQueue() {
+  const data = await apiFetch('/queue');
+  const grid = document.getElementById('queue-grid');
+
+  if (!data || !data.length) {
+    grid.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">Fila vazia</div>';
+    return;
+  }
+
+  grid.innerHTML = data.map((item, idx) => `
+    <div class="queue-item">
+      <img src="${esc(item.image_url || '')}" alt="" onerror="this.style.display='none'" />
+      <div class="q-info">
+        <div class="q-title">${esc(item.title)}</div>
+        <div class="q-meta">
+          <span class="q-price">${fmtBrl(item.price_current)}</span>
+          <span>${storeLabel(item.store)}</span>
+        </div>
+        <div style="margin-top:4px;">
+          <span class="badge-tier ${item.priority_tier}">${item.priority_tier}</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-left:6px;">
+            score ${item.score}
+          </span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Logs
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadLogs() {
+  const data = await apiFetch('/logs');
+  allLogs = data || [];
+  renderLogs(allLogs);
+}
+
+function renderLogs(logs) {
+  const container = document.getElementById('log-list');
+
+  if (!logs.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:16px 0;">Nenhum post encontrado</div>';
+    return;
+  }
+
+  container.innerHTML = logs.map(r => `
+    <div class="log-entry">
+      <span class="ts">${fmtTs(r.posted_at)}</span>
+      <span class="store">${storeLabel(r.store)}</span>
+      <span class="title-col">${esc(r.title)}</span>
+      <span class="clicks">▲ ${fmt(r.clicks)}</span>
+      <span class="views">${fmt(r.views)} views</span>
+    </div>
+  `).join('');
+}
+
+function filterLogs() {
+  const q = document.getElementById('log-filter').value.toLowerCase();
+  const filtered = allLogs.filter(r =>
+    (r.title || '').toLowerCase().includes(q) ||
+    (r.store || '').toLowerCase().includes(q)
+  );
+  renderLogs(filtered);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Configurações
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function loadConfig() {
+  const [cfg, brands] = await Promise.all([
+    apiFetch('/config'),
+    apiFetch('/brands'),
+  ]);
+
+  if (cfg) {
+    setValue('cfg-threshold', cfg.score_threshold ?? 70);
+    setValue('cfg-min-discount', cfg.min_discount_pct ?? 15);
+    setValue('cfg-min-reviews', cfg.min_reviews ?? 50);
+    setValue('cfg-min-rating', cfg.min_rating ?? 4.0);
+  }
+
+  if (brands) {
+    renderBrands(brands);
+  }
+}
+
+function renderBrands(brands) {
+  const whitelists = brands.filter(b => b.status === 'whitelist');
+  const blacklists = brands.filter(b => b.status === 'blacklist');
+
+  document.getElementById('whitelist-tags').innerHTML = whitelists.map(b => `
+    <span class="brand-tag whitelist" title="Clique para remover" onclick="removeBrand('${esc(b.brand)}')">${esc(b.brand)} ×</span>
+  `).join('') || '<span style="color:var(--muted);font-size:11px;">Nenhuma</span>';
+
+  document.getElementById('blacklist-tags').innerHTML = blacklists.map(b => `
+    <span class="brand-tag blacklist" title="Clique para remover" onclick="removeBrand('${esc(b.brand)}')">${esc(b.brand)} ×</span>
+  `).join('') || '<span style="color:var(--muted);font-size:11px;">Nenhuma</span>';
+}
+
+async function saveConfig() {
+  const payload = {
+    score_threshold: Number(document.getElementById('cfg-threshold').value),
+    min_discount_pct: Number(document.getElementById('cfg-min-discount').value),
+    min_reviews: Number(document.getElementById('cfg-min-reviews').value),
+    min_rating: Number(document.getElementById('cfg-min-rating').value),
+  };
+
+  try {
+    const res = await fetch(API_BASE + '/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) showToast('Configurações salvas!');
+    else showToast('Erro ao salvar', true);
+  } catch { showToast('Erro de conexão', true); }
+}
+
+async function addBrandRule() {
+  const brand = document.getElementById('brand-input').value.trim();
+  const status = document.getElementById('brand-status').value;
+  if (!brand) return;
+
+  try {
+    const res = await fetch(API_BASE + '/brands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand, status }),
+    });
+    if (res.ok) {
+      document.getElementById('brand-input').value = '';
+      loadConfig();
+      showToast(`${brand} adicionada à ${status}`);
+    }
+  } catch { showToast('Erro ao adicionar marca', true); }
+}
+
+async function removeBrand(brand) {
+  if (!confirm(`Remover "${brand}"?`)) return;
+  try {
+    await fetch(API_BASE + '/brands/' + encodeURIComponent(brand), { method: 'DELETE' });
+    loadConfig();
+    showToast(`${brand} removida`);
+  } catch { showToast('Erro ao remover', true); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Toast / feedback
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showToast(msg, error = false) {
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position:fixed;bottom:24px;right:24px;z-index:9999;
+    background:${error ? 'var(--danger)' : 'var(--success)'};
+    color:#fff;padding:10px 18px;border-radius:8px;
+    font-family:var(--font-mono);font-size:12px;font-weight:600;
+    box-shadow:0 4px 20px rgba(0,0,0,0.4);
+    animation:fadeIn 0.2s ease;
+  `;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers DOM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function setValue(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.value = val;
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Atualização global
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function refreshAll() {
+  const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '');
+  if (activeTab === 'dashboard') await loadDashboard();
+  else if (activeTab === 'fila') await loadQueue();
+  else if (activeTab === 'logs') await loadLogs();
+  else if (activeTab === 'config') await loadConfig();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════════════════
+
+(async function init() {
+  await loadDashboard();
+
+  // Auto-refresh a cada 60 segundos
+  setInterval(async () => {
+    const activeTab = document.querySelector('.tab-panel.active')?.id?.replace('tab-', '');
+    if (activeTab === 'dashboard') await loadDashboard();
+  }, 60_000);
+})();
+</script>
+</body>
+</html>

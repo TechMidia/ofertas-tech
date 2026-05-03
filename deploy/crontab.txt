@@ -1,0 +1,12 @@
+# Cron do sistema — canal TechMidia Ofertas
+# Instalar: crontab -e e colar estas linhas
+# Ou: sudo cp crontab.txt /etc/cron.d/techmidia-ofertas
+
+# Poster: publica 1 oferta por hora
+0 * * * * cd /opt/techmidia/services/telegram-poster && node dist/src/scheduler.js >> /var/log/techmidia/poster.log 2>&1
+
+# Curador: processa novas ofertas a cada 30 minutos
+*/30 * * * * cd /opt/techmidia/services/tech-deals-curator && node dist/agent.js >> /var/log/techmidia/curator.log 2>&1
+
+# Limpeza: expira entradas antigas do posted_cache (roda às 3h diariamente)
+0 3 * * * psql "$PG_DSN" -c "DELETE FROM affiliate.posted_cache WHERE expires_at < NOW();" >> /var/log/techmidia/cleanup.log 2>&1
