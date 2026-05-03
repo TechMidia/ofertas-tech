@@ -62,7 +62,7 @@ app.post('/api/build', async (req: Request, res: Response) => {
   }
 
   const code = nanoid();
-  const baseUrl = process.env.SHORTLINK_BASE_URL ?? 'https://jao.lol/d';
+  const baseUrl = process.env.SHORTLINK_BASE_URL ?? 'https://go.techmidia.com/d';
   const shortlink = `${baseUrl}/${code}`;
 
   await saveShortlink(code, affiliateUrl, approved_id);

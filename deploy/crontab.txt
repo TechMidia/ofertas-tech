@@ -1,4 +1,4 @@
-# Cron do sistema — canal TechMidia Ofertas
+# Cron do sistema — canal Tech Ofertas
 # Instalar: crontab -e e colar estas linhas
 # Ou: sudo cp crontab.txt /etc/cron.d/techmidia-ofertas
 

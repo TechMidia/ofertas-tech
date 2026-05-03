@@ -1,0 +1,23 @@
+# Serviço systemd para o affiliate-link-builder
+# Instalar:
+#   sudo cp systemd-affiliate-link-builder.service /etc/systemd/system/affiliate-link-builder.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now affiliate-link-builder
+
+[Unit]
+Description=TechMidia — Affiliate Link Builder (shortlinks go.techmidia.com)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=techmidia
+WorkingDirectory=/opt/techmidia/services/affiliate-link-builder
+EnvironmentFile=/opt/techmidia/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=10s
+StandardOutput=append:/var/log/techmidia/affiliate-link-builder.log
+StandardError=append:/var/log/techmidia/affiliate-link-builder.log
+
+[Install]
+WantedBy=multi-user.target
