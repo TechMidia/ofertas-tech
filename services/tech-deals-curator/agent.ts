@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import axios from 'axios';
 import { Pool } from 'pg';
 
@@ -10,7 +9,6 @@ const GATEWAY = process.env.DEEPSEEK_GATEWAY ?? 'http://localhost:18789';
 const MODEL = 'deepseek/deepseek-chat';
 const THRESHOLD = Number(process.env.CURATOR_SCORE_THRESHOLD ?? 70);
 
-// Cache S2 em memória simples (30 dias via DB)
 const systemPrompt = fs.readFileSync(
   path.join(__dirname, 'prompts', 'system.md'),
   'utf-8'
@@ -40,6 +38,9 @@ interface CuratorResult {
   category_normalized: string;
   priority_tier: 'high' | 'normal' | 'low';
   red_flags: string[];
+  hook: string;
+  product_line: string;
+  extra_note: string;
 }
 
 async function getPriceHistory(hashDedup: string): Promise<{ price: number; observed_at: string }[]> {
@@ -61,7 +62,7 @@ async function getBrandStatus(brand: string | null): Promise<string> {
   return result.rows[0]?.status ?? 'unknown';
 }
 
-// Verifica cache S2: se já curou este hash nas últimas 30 dias, pula
+// Cache S2: pula se este produto já foi curado e aprovado nos últimos 30 dias
 async function isCached(hashDedup: string): Promise<boolean> {
   const result = await pool.query(
     `SELECT 1 FROM affiliate.offers_approved oa
@@ -81,16 +82,15 @@ async function callDeepseek(userMessage: string): Promise<string> {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.1,
-      max_tokens: 512,
+      temperature: 0.7,  // um pouco de criatividade para os hooks
+      max_tokens: 600,
     },
     { timeout: 30000 }
   );
-
   return response.data.choices[0].message.content as string;
 }
 
-async function buildAffiliateUrl(originalUrl: string, store: string, rawId: number): Promise<string> {
+async function buildShortlink(originalUrl: string, store: string): Promise<string> {
   try {
     const res = await axios.post('http://localhost:18790/api/build', {
       url: originalUrl,
@@ -102,52 +102,38 @@ async function buildAffiliateUrl(originalUrl: string, store: string, rawId: numb
   }
 }
 
+// Monta o copy final no formato do canal Tech Ofertas
 function generateCopy(offer: OfferRaw, result: CuratorResult, shortlink: string): string {
-  const categoryEmojis: Record<string, string> = {
-    smartphone: '📱', notebook: '💻', tv: '📺', monitor: '🖥️',
-    teclado: '⌨️', mouse: '🖱️', headset: '🎧', fone: '🎧',
-    storage: '💾', processador: '🔧', gpu: '🎮', memoria: '🧠',
-    camera: '📷', tablet: '📲', smartwatch: '⌚', smart_home: '🏠',
-    games: '🎮', periferico: '🖥️', outros: '🔌',
-  };
+  // Escapa apenas os caracteres que o Telegram MarkdownV2 exige fora de blocos bold/italic
+  const escV2 = (s: string) => s.replace(/[_[\]()~`>#+\-=|{}.!]/g, '\\$&');
 
-  const storeEmojis: Record<string, string> = {
-    amazon: '📦', mercadolivre: '🛍️', shopee: '🟠',
-  };
-
-  const categoryEmoji = categoryEmojis[result.category_normalized] ?? '🔌';
-  const categoryName = result.category_normalized.replace('_', ' ').toUpperCase();
-  const storeEmoji = storeEmojis[offer.store.toLowerCase()] ?? '🛒';
-  const storeName = offer.store.charAt(0).toUpperCase() + offer.store.slice(1);
-  const storeHashtag = offer.store.toLowerCase().replace(/\s+/g, '');
-  const catHashtag = result.category_normalized.replace('_', '');
-
-  const precoOriginal = offer.price_original
-    ? `De ~R$${Number(offer.price_original).toFixed(2).replace('.', ',')}~ por `
+  // Linha de preço: ~DE X~ | *POR Y* no pix
+  const priceOriginal = offer.price_original
+    ? `~DE ${fmt(offer.price_original)}~ \\| `
     : '';
-  const desconto = offer.discount_pct
-    ? `\n📉 *${Math.round(Number(offer.discount_pct))}% OFF*`
-    : '';
-  const avaliacoes = offer.rating
-    ? `\n⭐ ${offer.rating} \\(${offer.reviews_count ?? '?'} avaliações\\)`
+  const priceLine = `🔥 ${priceOriginal}*POR ${fmt(offer.price_current)}* no pix`;
+
+  // Nota extra (cupom, cashback, frete) — em itálico se presente
+  const extraLine = result.extra_note?.trim()
+    ? `✅ _${escV2(result.extra_note.trim())}_`
     : '';
 
-  // Escapa caracteres especiais do Markdown V2
-  const escapeMarkdownV2 = (text: string) =>
-    text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
+  const lines = [
+    result.hook,                // ex: NOTEBOOK DE DEV SEM VENDER RIM
+    '',
+    result.product_line,        // ex: 💻 *Dell Inspiron 15, i5 12ª gen, 16GB, SSD 512GB*
+    '',
+    priceLine,
+    ...(extraLine ? [extraLine] : []),
+    '',
+    `🔗${shortlink}`,
+  ];
 
-  return [
-    `🔥 *OFERTA TECH* | _${categoryEmoji} ${categoryName}_`,
-    '',
-    `*${escapeMarkdownV2(offer.title)}*`,
-    '',
-    `💸 ${precoOriginal}*R$${Number(offer.price_current).toFixed(2).replace('.', ',')}*${desconto}${avaliacoes}`,
-    `🏪 ${storeEmoji} ${storeName}`,
-    '',
-    `🛒 [👉 PEGAR OFERTA](${shortlink})`,
-    '',
-    `\\#tech \\#ofertas \\#${storeHashtag} \\#${catHashtag}`,
-  ].join('\n');
+  return lines.join('\n');
+}
+
+function fmt(value: number): string {
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 async function processOffer(offer: OfferRaw): Promise<void> {
@@ -178,13 +164,14 @@ async function processOffer(offer: OfferRaw): Promise<void> {
     },
     price_history: priceHistory,
     brand_status: brandStatus,
+    current_date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }),
   });
 
   let result: CuratorResult;
   try {
     const raw = await callDeepseek(userMessage);
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Resposta sem JSON');
+    if (!jsonMatch) throw new Error('Resposta sem JSON válido');
     result = JSON.parse(jsonMatch[0]) as CuratorResult;
   } catch (err) {
     console.error(JSON.stringify({ level: 'error', event: 'curator_parse_error', id: offer.id, err: String(err) }));
@@ -192,22 +179,22 @@ async function processOffer(offer: OfferRaw): Promise<void> {
     return;
   }
 
-  // Salva histórico de preço atual
+  // Salva histórico de preço independente de aprovação (para detectar fake discount futuro)
   await pool.query(
     'INSERT INTO affiliate.price_history (hash_dedup, price) VALUES ($1, $2)',
     [offer.hash_dedup, offer.price_current]
   );
 
   if (!result.approve || result.score < THRESHOLD) {
-    console.log(JSON.stringify({ level: 'info', event: 'offer_rejected', id: offer.id, score: result.score }));
+    console.log(JSON.stringify({
+      level: 'info', event: 'offer_rejected', id: offer.id, score: result.score,
+      flags: result.red_flags,
+    }));
     await pool.query('UPDATE affiliate.offers_raw SET processed=true, processed_at=NOW() WHERE id=$1', [offer.id]);
     return;
   }
 
-  // Gera link afiliado via affiliate-link-builder
-  const shortlink = await buildAffiliateUrl(offer.url_original, offer.store, offer.id);
-  const affiliateUrl = shortlink; // O shortlink já redireciona para o URL com tag
-
+  const shortlink = await buildShortlink(offer.url_original, offer.store);
   const copy = generateCopy(offer, result, shortlink);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -219,7 +206,7 @@ async function processOffer(offer: OfferRaw): Promise<void> {
       offer.id,
       result.score,
       result.reasoning,
-      affiliateUrl,
+      shortlink,
       shortlink,
       copy,
       result.priority_tier,
@@ -230,7 +217,8 @@ async function processOffer(offer: OfferRaw): Promise<void> {
   await pool.query('UPDATE affiliate.offers_raw SET processed=true, processed_at=NOW() WHERE id=$1', [offer.id]);
 
   console.log(JSON.stringify({
-    level: 'info', event: 'offer_approved', id: offer.id, score: result.score, tier: result.priority_tier,
+    level: 'info', event: 'offer_approved',
+    id: offer.id, score: result.score, tier: result.priority_tier, hook: result.hook,
   }));
 }
 
